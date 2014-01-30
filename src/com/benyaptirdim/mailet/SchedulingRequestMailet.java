@@ -129,7 +129,7 @@ public class SchedulingRequestMailet extends GenericMailet {
                     }
                     System.out.println("adding file:" + bodyPart.getFileName());
                     System.out.println("content type:" + bodyPart.getContentType());
-                    params.addFile(IOUtil.toByteArray(bodyPart.getInputStream()), bodyPart.getContentType());
+                    params.addFile(IOUtil.toByteArray(bodyPart.getInputStream()), bodyPart.getContentType(),bodyPart.getFileName());
                 }
             }catch (Exception e) {
                 System.out.println(e.toString());
@@ -311,7 +311,7 @@ public class SchedulingRequestMailet extends GenericMailet {
             try {
                 params.addFile(IOUtil.toByteArray( 
                         ((MimeBodyPart)p).getInputStream())
-                        , p.getContentType());
+                        , p.getContentType(),p.getFileName());
 //                File f = new File(filename);
 //                if (f.exists())
 //                // XXX - could try a series of names
@@ -389,6 +389,7 @@ public class SchedulingRequestMailet extends GenericMailet {
     class MyHttpParams {
         Vector<byte[]> files = new Vector<byte[]>();;
         Vector<String> contentTypes = new Vector<String>();;
+        Vector<String> fileNames = new Vector<String>();;
         String html = "";
         String text = "";
         Long from = -1L;
@@ -406,9 +407,10 @@ public class SchedulingRequestMailet extends GenericMailet {
             "        Long project = \n" + project+ 
             "";
         }
-        void addFile(byte[] arr, String contentType) {
+        void addFile(byte[] arr, String contentType,String filename) {
             files.add(arr);
             contentTypes.add(contentType);
+            fileNames.add(filename);
         }
 
         public void send() throws ClientProtocolException, IOException {
@@ -418,7 +420,7 @@ public class SchedulingRequestMailet extends GenericMailet {
             MultipartEntityBuilder builder = MultipartEntityBuilder.create().setMode(HttpMultipartMode.BROWSER_COMPATIBLE);
             builder.addTextBody("key", "heroku");
             for (int i = 0; i < files.size(); i++) {
-                builder.addBinaryBody("file[" + i + "]", files.get(i), ContentType.parse(contentTypes.get(0)), "file[" + i + "]");
+                builder.addBinaryBody("files", files.get(i), ContentType.parse(fileNames.get(i)),fileNames.get(i));
             }
             builder.addTextBody("html", html);
             builder.addTextBody("from", "" + from);
@@ -426,6 +428,7 @@ public class SchedulingRequestMailet extends GenericMailet {
             builder.addTextBody("text", text);
             builder.addTextBody("project", "" + project);
             post.setEntity(builder.build());
+            builder.setCharset(Charset.forName("UTF-8"));
 
             CloseableHttpResponse response = null;
             try {
