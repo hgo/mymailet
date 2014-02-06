@@ -70,7 +70,7 @@
       <!-- fetched domains in the server name list to prevent looping.       -->
       <servernames autodetect="true" autodetectIP="true">
 <!-- CONFIRM? -->
-        <servername>hgo.me</servername>
+        <servername>notification.benyaptirdim.com</servername>
          <servername>localhost</servername>
       </servernames>
 
@@ -784,7 +784,27 @@ Regards, Postmaster XXX.YYY
          
           <server>8.8.4.4</server>
           <server>8.8.8.8</server>
-          <server>209.244.0.3</server>
+          <server>208.64.122.242</server>
+          <server>208.64.122.244</server>
+          <server>50.7.230.26</server>
+          <server>66.90.82.194</server>
+          <server>68.233.250.45</server>
+          <server>69.16.244.25</server>
+          <server>173.224.125.12</server>
+          <server>184.173.112.216</server>
+          <server>188.138.96.213</server>
+          <server>204.45.254.2</server>
+          <server>67.228.228.216</server>
+          <server>173.236.55.99</server>
+          <server>184.171.163.91</server>
+          <server>184.173.147.66</server>
+          <server>37.58.77.234</server>
+          <server>50.23.83.48</server>
+          <server>188.138.2.23</server>
+          <server>213.229.119.229</server>
+          <server>69.160.33.75</server>
+          <server>72.20.38.137</server>
+          <server>95.211.9.35</server>
       </servers>
       <!-- Change autodiscover to false if you would like to turn off autodiscovery -->
       <!-- and set the DNS servers manually in the <servers> section -->

@@ -7,10 +7,10 @@ public class SchedulingRequestMatcher extends GenericRecipientMatcher
 {
   public boolean matchRecipient(MailAddress recipient)
   {
-    if (recipient.getUser().startsWith("request-available-")) {
+    if (recipient.getUser().startsWith("maker-")) {
       return true;
     }
-    if (recipient.getUser().startsWith("request-unavailable-")) {
+    if (recipient.getUser().startsWith("customer-")) {
       return true;
     }
     return false;
