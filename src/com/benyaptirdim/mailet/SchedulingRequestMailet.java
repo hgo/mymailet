@@ -1,7 +1,10 @@
 package com.benyaptirdim.mailet;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.util.Properties;
 import java.util.Vector;
@@ -122,30 +125,31 @@ public class SchedulingRequestMailet extends GenericMailet {
             MyHttpParams params = new MyHttpParams();
             MimeMessage message = mail.getMessage();
             String text = getText(message);
-            System.out.println("adding text : " + text);
+            log("adding text : " + text);
             if (text != null) {
-                params.text += text;
+                params.text += process(text);
             }
             String html = getHtml(message);
-            System.out.println("adding html : " + html);
+            log("adding html : " + html);
             if (html != null) {
-                params.html += html;
+                
+                params.html += process(html);
             }
             try {
                 Multipart multipart = (Multipart) message.getContent();
-                // System.out.println(multipart.getCount());
+                // log(multipart.getCount());
 
                 for (int i = 0; i < multipart.getCount(); i++) {
                     BodyPart bodyPart = multipart.getBodyPart(i);
-                    if (!Part.ATTACHMENT.equalsIgnoreCase(bodyPart.getDisposition())) {
+                    if (!Part.ATTACHMENT.equalsIgnoreCase(bodyPart.getDisposition()) && ! hasInline(bodyPart)) {
                         continue; // dealing with attachments only
                     }
-                    System.out.println("adding file:" + bodyPart.getFileName());
-                    System.out.println("content type:" + bodyPart.getContentType());
+                    log("adding file:" + bodyPart.getFileName());
+                    log("content type:" + bodyPart.getContentType());
                     params.addFile(IOUtil.toByteArray(bodyPart.getInputStream()), bodyPart.getContentType(), bodyPart.getFileName());
                 }
             } catch (Exception e) {
-                System.out.println(e.toString());
+                log(e.toString());
             }
 
             params.send();
@@ -178,11 +182,51 @@ public class SchedulingRequestMailet extends GenericMailet {
         }
     }
 
+    private String process(String string) {
+        ProcessBuilder pb = new ProcessBuilder("ruby", "/root/email_reply_parser.rb","'"+string.replaceAll("'", "\"")+"'");
+        try {
+            Process p =pb.start();
+            BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+            StringBuilder builder = new StringBuilder();
+            String line = null;
+            while ( (line = br.readLine()) != null) {
+               builder.append(line);
+               builder.append(System.getProperty("line.separator"));
+            }
+            String result = builder.toString();
+            return result;
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        return string;
+    }
+
+    private boolean hasInline(BodyPart bodyPart) {
+        try {
+            if(bodyPart.getHeader("Content-ID") !=null ){
+                return true;
+            }
+            if(bodyPart.getHeader("X-Attachment-Id") !=null ){
+                return true;
+            }
+            if(bodyPart.getDisposition() != null && bodyPart.getDisposition().contains("inline")){
+                return true;
+            }
+            
+        } catch (MessagingException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        
+        return false;
+    }
+
     // address starts with maker-
     private void processMaker(String address, MyHttpParams params) throws Exception {
         String[] splitted = address.split("-");
         if (splitted.length != 4) {
-            System.out.println("error on split processmaker");
+            log("error on split processmaker");
             throw new Exception("error on split processmaker");
         }
         // maker-MakerID-ClientID-ProjectUUID
@@ -201,7 +245,7 @@ public class SchedulingRequestMailet extends GenericMailet {
     private void processCustomer(String address, MyHttpParams params) throws Exception {
         String[] splitted = address.split("-");
         if (splitted.length != 4) {
-            System.out.println("error on split processcustomer");
+            log("error on split processcustomer");
             throw new Exception("error on split processcustomer");
         }
         // customer-MakerID-ClientID-ProjectUUID
@@ -217,24 +261,36 @@ public class SchedulingRequestMailet extends GenericMailet {
     }
 
     private String getHtml(Part p) throws MessagingException, IOException {
-
+        log("getHtml");
+        log(p.getContentType());
         if (p.isMimeType("text/html")) {
-            String s = new String((p.getContent().toString()).getBytes("UTF-8"));
+            log("get html content - : "+ new String((p.getContent().toString()).getBytes("UTF-8")));
+            String s = readUTF8(p.getInputStream());
+            log("getHtml html found!\n" + s);
             return s;
         }
 
         if (p.isMimeType("multipart/alternative")) {
+            log("getHtml multipart/alternative");
             Multipart mp = (Multipart) p.getContent();
             String text = null;
             for (int i = 0; i < mp.getCount(); i++) {
+                log("getHtml multipart/alternative " + i);
                 Part bp = mp.getBodyPart(i);
                 if (bp.isMimeType("text/html")) {
+                    log("getHtml in " + "multipart/alternative " + i + "   text/html");
                     if (text == null){
                         text = getHtml(bp);
+                        if(text != null){
+                            return text;
+                        }
                     }
                     continue;
                 } else {
-                    return getHtml(bp);
+                    text = getHtml(bp);
+                    if(text != null){
+                        return text;
+                    }
                 }
             }
             return text;
@@ -249,25 +305,51 @@ public class SchedulingRequestMailet extends GenericMailet {
         return null;
     }
 
+    private String readUTF8(InputStream in) {
+        try {
+            BufferedInputStream buf = new BufferedInputStream(in);
+            InputStreamReader reader = new InputStreamReader(buf, "UTF-8");
+            StringBuilder builder = new StringBuilder();
+            int data = reader.read();
+            while (data != -1) {
+                char theChar = (char) data;
+                builder.append(theChar);
+                data = reader.read();
+            }
+            buf.close();
+            in.close();
+            reader.close();
+            return builder.toString();
+        } catch (Exception e) {
+            log(e.getLocalizedMessage());
+        }
+        return null;
+    }
+
     private String getText(Part p) throws MessagingException, IOException {
-        System.out.println("getText");
+        log("getText");
         if (p.isMimeType("text/plain")) {
-            String s = new String((p.getContent().toString()).getBytes("UTF-8"));
-            System.out.println("getText plain found!\n" + s);
+            log("get content - : "+ new String((p.getContent().toString()).getBytes("UTF-8")));
+            String s = readUTF8(p.getInputStream());
+            log("getText plain found!\n" + s);
             return s;
         }
 
         if (p.isMimeType("multipart/alternative")) {
-            System.out.println("getText multipart/alternative");
+            log("getText multipart/alternative");
             Multipart mp = (Multipart) p.getContent();
             String text = null;
             for (int i = 0; i < mp.getCount(); i++) {
-                System.out.println("getText multipart/alternative " + i);
+                log("getText multipart/alternative " + i);
                 Part bp = mp.getBodyPart(i);
                 if (bp.isMimeType("text/plain")) {
-                    System.out.println("getText in " + "multipart/alternative " + i + "   text/plain");
-                    if (text == null)
+                    log("getText in " + "multipart/alternative " + i + "   text/plain");
+                    if (text == null){
                         text = getText(bp);
+                        if(text != null){
+                            return text;
+                        }
+                    }
                     continue;
                 } else {
                     return getText(bp);
@@ -318,21 +400,21 @@ public class SchedulingRequestMailet extends GenericMailet {
             for (int i = 0; i < files.size(); i++) {
                 builder.addBinaryBody("files", files.get(i), ContentType.parse(fileNames.get(i)), fileNames.get(i));
             }
-            builder.addTextBody("html", html);
+            builder.addTextBody("html", html,ContentType.create("text/plain", "UTF-8"));
             builder.addTextBody("from", "" + maker);
             builder.addTextBody("to", "" + customer);
-            builder.addTextBody("text", text);
+            builder.addTextBody("text", text,ContentType.create("text/plain", "UTF-8"));
             builder.addTextBody("project", "" + project);
             post.setEntity(builder.build());
             builder.setCharset(Charset.forName("UTF-8"));
 
             CloseableHttpResponse response = null;
             try {
-                System.out.println("params: " + this.toString());
-                System.out.println("post : " + post.getEntity());
+                log("params: " + this.toString());
+                log("post : " + post.getEntity());
                 response = httpclient.execute(post);
                 HttpEntity entity = response.getEntity();
-                System.out.println("response : " + entity);
+                log("response : " + entity);
                 if (entity != null) {
                     InputStream instream = entity.getContent();
                     try {
